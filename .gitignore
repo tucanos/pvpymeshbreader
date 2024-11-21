@@ -1,0 +1,5 @@
+*.o
+*.so
+*.mesh
+*.meshb
+*.json
