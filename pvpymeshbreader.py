@@ -68,7 +68,7 @@ def _numpy_to_cell_array(cell_types, offset, connectivity):
 @smproxy.reader(
     name="PythonMeshbReader",
     label="Python-based meshb Reader",
-    extensions=["mesh", "meshb", "json"],
+    extensions=["mesh", "meshb"],
     file_description="Meshb files",
 )
 class PythonCODAReader(VTKPythonAlgorithmBase):
@@ -102,28 +102,30 @@ class PythonCODAReader(VTKPythonAlgorithmBase):
 
     @smproperty.stringvector(name="FileName")
     @smdomain.filelist()
-    @smhint.filechooser(extensions=["mesh", "meshb", "json"], file_description="files")
+    @smhint.filechooser(extensions=["mesh", "meshb"], file_description="files")
     def SetFileName(self, name):
         """Specify filename for the file to read."""
         if self._filename != name:
             self._filename = name
             logging.info(f"Reading {name}")
             if name.endswith(".mesh") or name.endswith(".meshb"):
+                logging.info(f"Mesh file: {name}")
                 self._mesh = MeshbReader(name)
-            elif name.endswith(".json"):
-                with open(name, "r") as f:
-                    config = json.load(f)
-                mesh_name = config["mesh"]
-                print(mesh_name)
-                logging.info(f"Mesh file: {mesh_name}")
-                self._mesh = MeshbReader(mesh_name)
-                if "names" in config:
-                    self._names = {tag: name for name, tag in config["names"].items()}
-                    logging.info(f"Names: {self._names}")
-                if "fields" in config:
-                    for var_name, sol_fname in config["fields"].items():
-                        logging.info(f"Field {var_name}: {sol_fname}")
-                        self._sols[var_name] = MeshbReader(sol_fname)
+                prefix = name.replace(".meshb", "").replace(".mesh", "")
+                config_fname = prefix + ".json"
+                if os.path.exists(config_fname):
+                    logging.info(f"Config file: {config_fname}")
+                    with open(config_fname, "r") as f:
+                        config = json.load(f)
+                    if "names" in config:
+                        self._names = {
+                            tag: name for name, tag in config["names"].items()
+                        }
+                        logging.info(f"Names: {self._names}")
+                    if "fields" in config:
+                        for var_name, sol_fname in config["fields"].items():
+                            logging.info(f"Field {var_name}: {sol_fname}")
+                            self._sols[var_name] = MeshbReader(sol_fname)
             else:
                 pass
             self.Modified()
@@ -315,5 +317,4 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=logging.DEBUG)
 
-    # test("quadratic.meshb")
-    test("test.json")
+    test("quadratic.meshb")

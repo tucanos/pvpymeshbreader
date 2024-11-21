@@ -98,9 +98,9 @@ if __name__ == "__main__":
     model, names = build_geom()
 
     fname = "quadratic.meshb"
-    config = {"mesh": fname, "names": names}
+    config = {"names": names}
 
     write_meshb(model, order=2, fname="quadratic.meshb")
 
-    with open("test.json", "w") as f:
+    with open("quadratic.json", "w") as f:
         json.dump(config, f, indent=2)

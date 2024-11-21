@@ -15,10 +15,9 @@ To use this reader in Paraview load `pvpymeshbreader.py` as a plugin using the P
 
 ### Using tag names
 
-Names are not possibles in `.meshb` files. You can instead use a `.json` file as follows:
+Names are not possibles in `.meshb` files. They can be given in a separate `json` file with the same prefix, e.g. `quadratic.json` for a mesh file `quadratic.meshb`:
 ```json
 {
-  "mesh": "quadratic.meshb",
   "names": {
     "xmin": 1,
     "ymin": 2,
