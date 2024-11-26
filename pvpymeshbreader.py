@@ -31,6 +31,7 @@ import os, sys
 sys.path.append(os.path.dirname(__file__))
 from meshb_io import (
     MeshbReader,
+    VERTEX,
     EDGE,
     EDGE2,
     TRIANGLE,
@@ -98,7 +99,9 @@ class PythonCODAReader(VTKPythonAlgorithmBase):
 
         self._names = None
         self._mesh = None
-        self._sols = {}
+        self._node_sols = {}
+        self._cell_sols = {}
+        self._first_load = True
 
     @smproperty.stringvector(name="FileName")
     @smdomain.filelist()
@@ -122,10 +125,14 @@ class PythonCODAReader(VTKPythonAlgorithmBase):
                             tag: name for name, tag in config["names"].items()
                         }
                         logging.info(f"Names: {self._names}")
-                    if "fields" in config:
-                        for var_name, sol_fname in config["fields"].items():
+                    if "node_fields" in config:
+                        for var_name, sol_fname in config["node_fields"].items():
                             logging.info(f"Field {var_name}: {sol_fname}")
-                            self._sols[var_name] = MeshbReader(sol_fname)
+                            self._node_sols[var_name] = MeshbReader(sol_fname)
+                    if "cell_fields" in config:
+                        for var_name, sol_fname in config["cell_fields"].items():
+                            logging.info(f"Field {var_name}: {sol_fname}")
+                            self._cell_sols[var_name] = MeshbReader(sol_fname)
             else:
                 pass
             self.Modified()
@@ -151,7 +158,11 @@ class PythonCODAReader(VTKPythonAlgorithmBase):
 
     def RequestInformation(self, request, inInfoVec, outInfoVec):
 
-        for var_name in self._sols.keys():
+        for var_name in self._node_sols.keys():
+            self._arrayselection.AddArray(var_name)
+            if self._first_load:
+                self._arrayselection.EnableArray(var_name)
+        for var_name in self._cell_sols.keys():
             self._arrayselection.AddArray(var_name)
             if self._first_load:
                 self._arrayselection.EnableArray(var_name)
@@ -190,6 +201,7 @@ class PythonCODAReader(VTKPythonAlgorithmBase):
         offsets = np.array([0], dtype=np.int64)
         connectivity = np.zeros(0, dtype=np.int64)
         tags = np.zeros(0, dtype=np.int64)
+        cell_ids = []
         for etype, (vtk_type, edim) in CELL_TYPES.items():
             if edim == dim and etype in cells:
                 conn, etags = cells[etype]
@@ -207,6 +219,7 @@ class PythonCODAReader(VTKPythonAlgorithmBase):
                         cell_types, vtk_type * np.ones(n, dtype=np.int64)
                     )
                     tags = np.append(tags, tag * np.ones(n))
+                    cell_ids.append((etype, np.nonzero(flg)))
 
         ca = vtkCellArray()
         ca.SetNumberOfCells(offsets.size - 1)
@@ -220,13 +233,27 @@ class PythonCODAReader(VTKPythonAlgorithmBase):
         data = pug.GetCellData()
         data.append(tags, "tag")
 
-        return pug
+        return pug, used_verts, cell_ids
 
     def RequestData(self, request, inInfoVec, outInfoVec):
 
         xyz = self._mesh.read_vertices()
         cells = self._mesh.read_elements()
+        del self._mesh
         cell_dim = max([CELL_TYPES[etype][1] for etype in cells.keys()])
+
+        node_data = {
+            name: reader.read_sol(VERTEX) for name, reader in self._node_sols.items()
+        }
+        del self._node_sols
+
+        cell_data = {
+            name: {
+                etype: self._cell_sols[name].read_sol(etype) for etype in cells.keys()
+            }
+            for name in self._cell_sols.keys()
+        }
+        del self._cell_sols
 
         mbds = vtkMultiBlockDataSet.GetData(outInfoVec, 0)
         iz = 0
@@ -244,7 +271,9 @@ class PythonCODAReader(VTKPythonAlgorithmBase):
                     name = self._names[tag]
                 except:
                     name = "tag_%d" % tag
-                pug = self._create_unstructured_grid(dim, tag, xyz, cells)
+                (pug, vert_ids, cell_ids) = self._create_unstructured_grid(
+                    dim, tag, xyz, cells
+                )
                 if pug is not None:
                     logging.info(
                         "%s: %d vertices, %d cells"
@@ -253,16 +282,21 @@ class PythonCODAReader(VTKPythonAlgorithmBase):
                     mbds.SetBlock(iz, pug.VTKObject)
                     mbds.GetMetaData(iz).Set(mbds.NAME(), name)
                     iz += 1
-                    # data = pug.GetCellData()
-                    # added = []
-                    # if dim == cell_dim:
-                    #     for name, arr in zip(*cell_data):
-                    #         if name not in added:
-                    #             data.append(arr[cell_ids], name)
-                    # elif dim == cell_dim - 1:
-                    #     for name, arr in zip(*bdy_data):
-                    #         if name not in added:
-                    #             data.append(arr[cell_ids], name)
+                    data = pug.GetPointData()
+                    added = []
+                    for name, arr in node_data.items():
+                        if name not in added:
+                            data.append(arr[vert_ids], name)
+                    data = pug.GetCellData()
+                    added = []
+                    if dim == cell_dim:
+                        for name, arrays in cell_data.items():
+                            if name not in added:
+                                arr = []
+                                for etype, ids in cell_ids:
+                                    arr.append(arrays[etype][ids])
+                                arr = np.concatenate(arr)
+                                data.append(arr, name)
 
         return 1
 
@@ -317,4 +351,6 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=logging.DEBUG)
 
-    test("quadratic.meshb")
+    # test("quadratic.meshb")
+
+    test("linear.meshb")
