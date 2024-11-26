@@ -8,4 +8,8 @@ from .meshb_io import (
     TRIANGLE2,
     TETRAHEDRON,
     TETRAHEDRON2,
+    SOL_AT_VERTICES,
+    SOL_AT_EDGES,
+    SOL_AT_TRIANGLES,
+    SOL_AT_TETRAHEDRA,
 )

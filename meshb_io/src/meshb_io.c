@@ -73,9 +73,48 @@ int write_elements(int64_t file, int64_t n_elems, int m, int etype, const int64_
     return 0;
 }
 
+int write_sol(int64_t file, int dim, int loc, int64_t n, int m, const double *sol)
+{
+    int sol_type;
+    if (m == 1)
+    {
+        sol_type = GmfSca;
+    }
+    else if (m == dim)
+    {
+        sol_type = GmfVec;
+    }
+    else if (m == dim * (dim + 1) / 2)
+    {
+        sol_type = GmfSymMat;
+    }
+    else if (m == dim * dim)
+    {
+        sol_type = GmfMat;
+    }
+    else
+    {
+        return -1;
+    }
+    GmfSetKwd(file, loc, n, 1, &sol_type);
+
+    for (int i = 0; i < n; i++)
+    {
+        GmfSetLin(file, loc, sol + m * i);
+    }
+    return 0;
+}
+
 int64_t get_num_entities(int64_t file, int kwd)
 {
     return GmfStatKwd(file, kwd);
+}
+
+int64_t get_sol_info(int64_t file, int loc, int *m)
+{
+    int n_sols;
+    int sol_types[GmfMaxTyp];
+    return GmfStatKwd(file, loc, &n_sols, m, sol_types);
 }
 
 int read_vertices(int64_t file, int64_t n_verts, int dim, double *coords)
@@ -131,6 +170,17 @@ int read_elements(int64_t file, int64_t n_elems, int m, int etype, int64_t *conn
     for (int i = 0; i < m * n_elems; i++)
     {
         conn[i] -= 1;
+    }
+    return 0;
+}
+
+int read_sol(int64_t file, int loc, int64_t n, int m, const double *sol)
+{
+    GmfGotoKwd(file, loc);
+
+    for (int i = 0; i < n; i++)
+    {
+        GmfGetLin(file, loc, sol + m * i);
     }
     return 0;
 }

@@ -22,6 +22,9 @@ lib.close_file.restype = None
 lib.write_vertices.argtypes = [c_int64, c_int64, c_int, coords_type]
 lib.write_vertices.restype = c_int
 
+lib.write_sol.argtypes = [c_int64, c_int, c_int, c_int64, c_int, coords_type]
+lib.write_sol.restype = c_int
+
 lib.write_elements.argtypes = [
     c_int64,
     c_int64,
@@ -35,6 +38,9 @@ lib.write_elements.restype = c_int
 lib.get_num_entities.argtypes = [c_int64]
 lib.get_num_entities.restype = c_int64
 
+lib.get_sol_info.argtypes = [c_int64, c_int, POINTER(c_int)]
+lib.get_sol_info.restype = c_int64
+
 lib.read_vertices.argtypes = [c_int64, c_int64, c_int, coords_type]
 lib.read_vertices.restype = c_int
 
@@ -47,6 +53,15 @@ lib.read_elements.argtypes = [
     tags_type,
 ]
 lib.read_elements.restype = c_int
+
+lib.read_sol.argtypes = [
+    c_int64,
+    c_int,
+    c_int64,
+    c_int,
+    coords_type,
+]
+lib.read_sol.restype = c_int
 
 VERTEX = 4
 EDGE = 5
@@ -64,6 +79,11 @@ ELEM_NUM_VERTS = {
     TETRAHEDRON: 4,
     TETRAHEDRON2: 10,
 }
+
+SOL_AT_VERTICES = 62
+SOL_AT_EDGES = 63
+SOL_AT_TRIANGLES = 64
+SOL_AT_TETRAHEDRA = 74
 
 
 class MeshbWriter:
@@ -99,6 +119,28 @@ class MeshbWriter:
             np.ascontiguousarray(tags, dtype=np.intc),
         )
         assert res != -1
+
+    def write_solution(self, loc, sol):
+
+        if loc == "vertex":
+            loc = SOL_AT_VERTICES
+        elif loc == "edge":
+            loc = SOL_AT_EDGES
+        elif loc == "triangle":
+            loc = SOL_AT_TRIANGLES
+        elif loc == "tetrahedron":
+            loc = SOL_AT_TETRAHEDRA
+        else:
+            raise NotImplementedError()
+
+        lib.write_sol(
+            self._file,
+            self._dim,
+            loc,
+            sol.shape[0],
+            sol.shape[1],
+            np.ascontiguousarray(sol, dtype=np.float64),
+        )
 
 
 class MeshbReader:
@@ -147,3 +189,24 @@ class MeshbReader:
             for x in ELEM_NUM_VERTS.keys()
             if self._num_elements(x) > 0
         }
+
+    def read_sol(self, loc):
+
+        if loc == VERTEX:
+            loc = SOL_AT_VERTICES
+        elif loc == EDGE or loc == EDGE2:
+            loc = SOL_AT_EDGES
+        elif loc == TRIANGLE or loc == TRIANGLE2:
+            loc = SOL_AT_TRIANGLES
+        elif loc == TETRAHEDRON or loc == TETRAHEDRON2:
+            loc = SOL_AT_TETRAHEDRA
+        else:
+            raise NotImplementedError()
+
+        m = c_int(-1)
+        n = lib.get_sol_info(self._file, loc, m)
+        m = m.value
+
+        sol = np.zeros((n, m), dtype=np.float64)
+        lib.read_sol(self._file, loc, n, m, sol)
+        return sol
