@@ -114,6 +114,7 @@ class PythonCODAReader(VTKPythonAlgorithmBase):
             if name.endswith(".mesh") or name.endswith(".meshb"):
                 logging.info(f"Mesh file: {name}")
                 self._mesh = MeshbReader(name)
+                pth = os.path.dirname(name)
                 prefix = name.replace(".meshb", "").replace(".mesh", "")
                 config_fname = prefix + ".json"
                 if os.path.exists(config_fname):
@@ -128,11 +129,15 @@ class PythonCODAReader(VTKPythonAlgorithmBase):
                     if "node_fields" in config:
                         for var_name, sol_fname in config["node_fields"].items():
                             logging.info(f"Field {var_name}: {sol_fname}")
-                            self._node_sols[var_name] = MeshbReader(sol_fname)
+                            self._node_sols[var_name] = MeshbReader(
+                                os.path.join(pth, sol_fname)
+                            )
                     if "cell_fields" in config:
                         for var_name, sol_fname in config["cell_fields"].items():
                             logging.info(f"Field {var_name}: {sol_fname}")
-                            self._cell_sols[var_name] = MeshbReader(sol_fname)
+                            self._cell_sols[var_name] = MeshbReader(
+                                os.path.join(pth, sol_fname)
+                            )
             else:
                 pass
             self.Modified()
