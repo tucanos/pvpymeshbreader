@@ -8,6 +8,7 @@ lib = npct.load_library("_meshb_io.so", os.path.dirname(__file__))
 npflags = ["C_CONTIGUOUS"]
 coords_type = npct.ndpointer(dtype=np.float64, ndim=2, flags=npflags)
 conn_type = npct.ndpointer(dtype=np.int64, ndim=2, flags=npflags)
+conn_type_int = npct.ndpointer(dtype=np.intc, ndim=2, flags=npflags)
 tags_type = npct.ndpointer(dtype=np.intc, ndim=1, flags=npflags)
 
 lib.open_file_write.argtypes = [c_char_p, c_int]
@@ -53,6 +54,16 @@ lib.read_elements.argtypes = [
     tags_type,
 ]
 lib.read_elements.restype = c_int
+
+lib.read_elements_int.argtypes = [
+    c_int64,
+    c_int64,
+    c_int,
+    c_int,
+    conn_type_int,
+    tags_type,
+]
+lib.read_elements_int.restype = c_int
 
 lib.read_sol.argtypes = [
     c_int64,
@@ -152,7 +163,7 @@ class MeshbReader:
         self._file = lib.open_file_read(fname.encode(), ver, dim)
         self._dim = dim.value
         self._ver = ver.value
-        assert self._ver == 3
+        assert self._ver in [2, 3, 4]
 
     def __del__(self):
 
@@ -177,9 +188,13 @@ class MeshbReader:
 
         n = self._num_elements(etype)
         m = ELEM_NUM_VERTS[etype]
-        conn = np.zeros((n, m), dtype=np.int64)
         tags = np.zeros(n, dtype=np.intc)
-        lib.read_elements(self._file, n, m, etype, conn, tags)
+        if self._ver == 2:
+            conn = np.zeros((n, m), dtype=np.intc)
+            lib.read_elements_int(self._file, n, m, etype, conn, tags)    
+        else:
+            conn = np.zeros((n, m), dtype=np.int64)
+            lib.read_elements(self._file, n, m, etype, conn, tags)
         return conn, tags
 
     def read_elements(self):

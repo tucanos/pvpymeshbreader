@@ -174,6 +174,39 @@ int read_elements(int64_t file, int64_t n_elems, int m, int etype, int64_t *conn
     return 0;
 }
 
+int read_elements_int(int64_t file, int64_t n_elems, int m, int etype, int *conn, int *tags)
+{
+    GmfGotoKwd(file, etype);
+    for (int i = 0; i < n_elems; i++)
+    {
+        if (m == 2)
+        {
+            GmfGetLin(file, etype, &conn[2 * i],
+                      &conn[2 * i + 1], &tags[i]);
+        }
+        else if (m == 3)
+        {
+            GmfGetLin(file, etype, &conn[3 * i],
+                      &conn[3 * i + 1], &conn[3 * i + 2], &tags[i]);
+        }
+        else if (m == 6)
+        {
+            GmfGetLin(file, etype, &conn[6 * i],
+                      &conn[6 * i + 1], &conn[6 * i + 2], &conn[6 * i + 3],
+                      &conn[6 * i + 4], &conn[6 * i + 5], &tags[i]);
+        }
+        else
+        {
+            return -m;
+        }
+    }
+    for (int i = 0; i < m * n_elems; i++)
+    {
+        conn[i] -= 1;
+    }
+    return 0;
+}
+
 int read_sol(int64_t file, int loc, int64_t n, int m, const double *sol)
 {
     GmfGotoKwd(file, loc);
