@@ -72,7 +72,7 @@ def _numpy_to_cell_array(cell_types, offset, connectivity):
     extensions=["mesh", "meshb"],
     file_description="Meshb files",
 )
-class PythonCODAReader(VTKPythonAlgorithmBase):
+class PythonMeshbReader(VTKPythonAlgorithmBase):
     """A reader that reads meshb files"""
 
     def __init__(self):
@@ -97,19 +97,41 @@ class PythonCODAReader(VTKPythonAlgorithmBase):
         self._arrayselection = vtkDataArraySelection()
         self._arrayselection.AddObserver("ModifiedEvent", createModifiedCallback(self))
 
+        self._file_names = []
+        self._filename = None
+        self._current_time = None
+        self.__reset()
+
+    def __reset(self):
+
         self._names = None
         self._mesh = None
         self._node_sols = {}
         self._cell_sols = {}
         self._first_load = True
 
-    @smproperty.stringvector(name="FileName")
+    @smproperty.stringvector(name="FileNames",
+                                label="File Names",
+                                animateable="1",
+                                # clean_command="RemoveAllFileNames",
+                                command="AddFileName",
+                                repeat_command="1",
+                                number_of_elements="1",
+                                panel_visibility="never"
+                                )
     @smdomain.filelist()
     @smhint.filechooser(extensions=["mesh", "meshb"], file_description="files")
-    def SetFileName(self, name):
-        """Specify filename for the file to read."""
-        if self._filename != name:
+    def AddFileName(self, name):
+
+        if name != "None":
+            self._file_names.append(name)
+        
+    def __read_files(self, i):
+
+        name = self._file_names[i]
+        if self._filename is None or self._filename != name:
             self._filename = name
+            self.__reset()
             logging.info(f"Reading {name}")
             if name.endswith(".mesh") or name.endswith(".meshb"):
                 logging.info(f"Mesh file: {name}")
@@ -126,24 +148,29 @@ class PythonCODAReader(VTKPythonAlgorithmBase):
                             tag: name for name, tag in config["names"].items()
                         }
                         logging.info(f"Names: {self._names}")
-                    if "node_fields" in config:
-                        for var_name, sol_fname in config["node_fields"].items():
+                    if "vertex_fields" in config:
+                        for var_name, sol_fname in config["vertex_fields"].items():
                             logging.info(f"Field {var_name}: {sol_fname}")
                             self._node_sols[var_name] = MeshbReader(
                                 os.path.join(pth, sol_fname)
                             )
+                    else:
+                        self._node_sols = {}
+
                     if "cell_fields" in config:
                         for var_name, sol_fname in config["cell_fields"].items():
                             logging.info(f"Field {var_name}: {sol_fname}")
                             self._cell_sols[var_name] = MeshbReader(
                                 os.path.join(pth, sol_fname)
                             )
+                    else:
+                        self._cell_sols = {}
             else:
                 pass
             self.Modified()
 
     def _get_timesteps(self):
-        return None
+        return list(range(len(self._file_names))) 
 
     @smproperty.doublevector(
         name="TimestepValues", information_only="1", si_class="vtkSITimeStepsProperty"
@@ -161,7 +188,41 @@ class PythonCODAReader(VTKPythonAlgorithmBase):
 
         return self._arrayselection
 
+    def _get_update_time(self, out_info):
+        executive = self.GetExecutive()
+        timesteps = self._get_timesteps()
+        if timesteps is None or len(timesteps) == 0:
+            return None
+        elif out_info.Has(executive.UPDATE_TIME_STEP()) and len(timesteps) > 0:
+            utime = out_info.Get(executive.UPDATE_TIME_STEP())
+            dtime = timesteps[0]
+            for atime in timesteps:
+                if atime > utime:
+                    return dtime
+                else:
+                    dtime = atime
+            return dtime
+        elif self._current_time is not None:
+            return self._current_time
+        else:
+            assert len(timesteps) > 0
+            return timesteps[0]
+        
     def RequestInformation(self, request, inInfoVec, outInfoVec):
+
+        executive = self.GetExecutive()
+        outInfo = outInfoVec.GetInformationObject(0)
+        outInfo.Remove(executive.TIME_STEPS())
+        outInfo.Remove(executive.TIME_RANGE())
+        timesteps = self._get_timesteps()
+        assert len(timesteps) > 0
+        if timesteps != []:
+            for t in timesteps:
+                outInfo.Append(executive.TIME_STEPS(), t)
+            outInfo.Append(executive.TIME_RANGE(), timesteps[0])
+            outInfo.Append(executive.TIME_RANGE(), timesteps[-1])
+
+        self.__read_files(0)
 
         for var_name in self._node_sols.keys():
             self._arrayselection.AddArray(var_name)
@@ -241,6 +302,10 @@ class PythonCODAReader(VTKPythonAlgorithmBase):
         return pug, used_verts, cell_ids
 
     def RequestData(self, request, inInfoVec, outInfoVec):
+
+        outInfo = outInfoVec.GetInformationObject(0)
+        time_step = self._get_update_time(outInfo)
+        self.__read_files(time_step)
 
         xyz = self._mesh.read_vertices()
         cells = self._mesh.read_elements()
