@@ -133,13 +133,13 @@ class MeshbWriter:
 
     def write_solution(self, loc, sol):
 
-        if loc == "vertex":
+        if loc == VERTEX:
             loc = SOL_AT_VERTICES
-        elif loc == "edge":
+        elif loc == EDGE or loc == EDGE2:
             loc = SOL_AT_EDGES
-        elif loc == "triangle":
+        elif loc == TRIANGLE or loc == TRIANGLE2:
             loc = SOL_AT_TRIANGLES
-        elif loc == "tetrahedron":
+        elif loc == TETRAHEDRON or loc == TETRAHEDRON2:
             loc = SOL_AT_TETRAHEDRA
         else:
             raise NotImplementedError()
@@ -211,7 +211,7 @@ class MeshbReader:
             if self._num_elements(x) > 0
         }
 
-    def read_sol(self, loc):
+    def read_solution(self, loc):
 
         if loc == VERTEX:
             loc = SOL_AT_VERTICES
