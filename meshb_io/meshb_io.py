@@ -36,7 +36,7 @@ lib.write_elements.argtypes = [
 ]
 lib.write_elements.restype = c_int
 
-lib.get_num_entities.argtypes = [c_int64]
+lib.get_num_entities.argtypes = [c_int64, c_int]
 lib.get_num_entities.restype = c_int64
 
 lib.get_sol_info.argtypes = [c_int64, c_int, POINTER(c_int)]
