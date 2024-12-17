@@ -158,12 +158,18 @@ class MeshbReader:
 
     def __init__(self, fname):
 
+        if not os.path.exists(fname):
+            raise IOError(f"File {fname} does not exist")
+
         dim = c_int(-1)
         ver = c_int(-1)
         self._file = lib.open_file_read(fname.encode(), ver, dim)
+        if self._file == 0:
+            raise IOError(f"Unable to open {fname} ")
         self._dim = dim.value
         self._ver = ver.value
         assert self._ver in [2, 3, 4]
+        assert self._dim in [2, 3]
 
     def __del__(self):
 
@@ -189,9 +195,9 @@ class MeshbReader:
         n = self._num_elements(etype)
         m = ELEM_NUM_VERTS[etype]
         tags = np.zeros(n, dtype=np.intc)
-        if self._ver == 2:
+        if self._ver <= 3:
             conn = np.zeros((n, m), dtype=np.intc)
-            lib.read_elements_int(self._file, n, m, etype, conn, tags)    
+            lib.read_elements_int(self._file, n, m, etype, conn, tags)
         else:
             conn = np.zeros((n, m), dtype=np.int64)
             lib.read_elements(self._file, n, m, etype, conn, tags)

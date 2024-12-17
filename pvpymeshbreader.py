@@ -100,9 +100,7 @@ class PythonMeshbReader(VTKPythonAlgorithmBase):
         self._file_names = []
         self._filename = None
         self._current_time = None
-        self.__reset()
-
-    def __reset(self):
+        self._timesteps = None
 
         self._names = None
         self._mesh = None
@@ -110,67 +108,92 @@ class PythonMeshbReader(VTKPythonAlgorithmBase):
         self._cell_sols = {}
         self._first_load = True
 
-    @smproperty.stringvector(name="FileNames",
-                                label="File Names",
-                                animateable="1",
-                                # clean_command="RemoveAllFileNames",
-                                command="AddFileName",
-                                repeat_command="1",
-                                number_of_elements="1",
-                                panel_visibility="never"
-                                )
+    @smproperty.stringvector(
+        name="FileNames",
+        label="File Names",
+        animateable="1",
+        # clean_command="RemoveAllFileNames",
+        command="AddFileName",
+        repeat_command="1",
+        number_of_elements="1",
+        panel_visibility="never",
+    )
     @smdomain.filelist()
     @smhint.filechooser(extensions=["mesh", "meshb"], file_description="files")
     def AddFileName(self, name):
 
         if name != "None":
             self._file_names.append(name)
-        
-    def __read_files(self, i):
+            self.__read_timesteps(name)
 
-        name = self._file_names[i]
-        if self._filename is None or self._filename != name:
+    def __read_timesteps(self, name):
+
+        prefix = name.replace(".meshb", "").replace(".mesh", "")
+        config_fname = prefix + ".json"
+        if os.path.exists(config_fname):
+            logging.info(f"Config file: {config_fname}")
+            with open(config_fname, "r") as f:
+                config = json.load(f)
+            if "steps" in config:
+                assert self._timesteps is None
+                self._timesteps = [x["time"] for x in config["steps"]]
+
+    def __read_files_for_step(self, time_step):
+
+        if len(self._file_names) > 1:
+            if time_step is None:
+                time_step = 0
+            name = self._file_names[time_step]
+        else:
+            name = self._file_names[0]
+            if time_step is not None:
+                time_step = self._timesteps.index(time_step)
+            else:
+                time_step = 0
+
+        if self._mesh is None or self._filename is None or self._filename != name:
             self._filename = name
-            self.__reset()
             logging.info(f"Reading {name}")
             if name.endswith(".mesh") or name.endswith(".meshb"):
                 logging.info(f"Mesh file: {name}")
                 self._mesh = MeshbReader(name)
-                pth = os.path.dirname(name)
-                prefix = name.replace(".meshb", "").replace(".mesh", "")
-                config_fname = prefix + ".json"
-                if os.path.exists(config_fname):
-                    logging.info(f"Config file: {config_fname}")
-                    with open(config_fname, "r") as f:
-                        config = json.load(f)
-                    if "names" in config:
-                        self._names = {
-                            tag: name for name, tag in config["names"].items()
-                        }
-                        logging.info(f"Names: {self._names}")
-                    if "vertex_fields" in config:
-                        for var_name, sol_fname in config["vertex_fields"].items():
-                            logging.info(f"Field {var_name}: {sol_fname}")
-                            self._node_sols[var_name] = MeshbReader(
-                                os.path.join(pth, sol_fname)
-                            )
-                    else:
-                        self._node_sols = {}
 
-                    if "cell_fields" in config:
-                        for var_name, sol_fname in config["cell_fields"].items():
-                            logging.info(f"Field {var_name}: {sol_fname}")
-                            self._cell_sols[var_name] = MeshbReader(
-                                os.path.join(pth, sol_fname)
-                            )
-                    else:
-                        self._cell_sols = {}
-            else:
-                pass
+        pth = os.path.dirname(name)
+        prefix = name.replace(".meshb", "").replace(".mesh", "")
+        config_fname = prefix + ".json"
+        if os.path.exists(config_fname):
+            logging.info(f"Config file: {config_fname}")
+            with open(config_fname, "r") as f:
+                config = json.load(f)
+            if "names" in config:
+                self._names = {tag: name for name, tag in config["names"].items()}
+                logging.info(f"Names: {self._names}")
+            if "steps" in config:
+                config = config["steps"][time_step]
+
+            self._node_sols = {}
+            if "vertex_fields" in config:
+                for var_name, sol_fname in config["vertex_fields"].items():
+                    logging.info(f"Field {var_name}: {sol_fname}")
+                    self._node_sols[var_name] = MeshbReader(
+                        os.path.join(pth, sol_fname)
+                    )
+
+            self._cell_sols = {}
+            if "cell_fields" in config:
+                for var_name, sol_fname in config["cell_fields"].items():
+                    logging.info(f"Field {var_name}: {sol_fname}")
+                    self._cell_sols[var_name] = MeshbReader(
+                        os.path.join(pth, sol_fname)
+                    )
+
             self.Modified()
 
     def _get_timesteps(self):
-        return list(range(len(self._file_names))) 
+        if len(self._file_names) > 1:
+            return list(range(len(self._file_names)))
+        else:
+            return self._timesteps
 
     @smproperty.doublevector(
         name="TimestepValues", information_only="1", si_class="vtkSITimeStepsProperty"
@@ -207,7 +230,7 @@ class PythonMeshbReader(VTKPythonAlgorithmBase):
         else:
             assert len(timesteps) > 0
             return timesteps[0]
-        
+
     def RequestInformation(self, request, inInfoVec, outInfoVec):
 
         executive = self.GetExecutive()
@@ -216,13 +239,13 @@ class PythonMeshbReader(VTKPythonAlgorithmBase):
         outInfo.Remove(executive.TIME_RANGE())
         timesteps = self._get_timesteps()
         assert len(timesteps) > 0
-        if timesteps != []:
-            for t in timesteps:
-                outInfo.Append(executive.TIME_STEPS(), t)
-            outInfo.Append(executive.TIME_RANGE(), timesteps[0])
-            outInfo.Append(executive.TIME_RANGE(), timesteps[-1])
 
-        self.__read_files(0)
+        for t in timesteps:
+            outInfo.Append(executive.TIME_STEPS(), t)
+        outInfo.Append(executive.TIME_RANGE(), timesteps[0])
+        outInfo.Append(executive.TIME_RANGE(), timesteps[-1])
+
+        self.__read_files_for_step(None)
 
         for var_name in self._node_sols.keys():
             self._arrayselection.AddArray(var_name)
@@ -305,17 +328,18 @@ class PythonMeshbReader(VTKPythonAlgorithmBase):
 
         outInfo = outInfoVec.GetInformationObject(0)
         time_step = self._get_update_time(outInfo)
-        self.__read_files(time_step)
+        self.__read_files_for_step(time_step)
 
         xyz = self._mesh.read_vertices()
+        if xyz.shape[1] == 2:
+            xyz = np.hstack([xyz, np.zeros([xyz.shape[0], 1])])
+
         cells = self._mesh.read_elements()
-        del self._mesh
         cell_dim = max([CELL_TYPES[etype][1] for etype in cells.keys()])
 
         node_data = {
             name: reader.read_sol(VERTEX) for name, reader in self._node_sols.items()
         }
-        del self._node_sols
 
         cell_data = {
             name: {
@@ -323,7 +347,6 @@ class PythonMeshbReader(VTKPythonAlgorithmBase):
             }
             for name in self._cell_sols.keys()
         }
-        del self._cell_sols
 
         mbds = vtkMultiBlockDataSet.GetData(outInfoVec, 0)
         iz = 0
@@ -374,8 +397,8 @@ class PythonMeshbReader(VTKPythonAlgorithmBase):
 def test(fname):
     from vtkmodules.vtkIOXML import vtkXMLMultiBlockDataWriter
 
-    reader = PythonCODAReader()
-    reader.SetFileName(fname)
+    reader = PythonMeshbReader()
+    reader.AddFileName(fname)
     reader.EnableAllVariables()
     reader.Update()
 
@@ -423,4 +446,4 @@ if __name__ == "__main__":
 
     # test("quadratic.meshb")
 
-    test("linear.meshb")
+    test("mesh.meshb")
