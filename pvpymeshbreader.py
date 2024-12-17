@@ -338,7 +338,8 @@ class PythonMeshbReader(VTKPythonAlgorithmBase):
         cell_dim = max([CELL_TYPES[etype][1] for etype in cells.keys()])
 
         node_data = {
-            name: reader.read_sol(VERTEX) for name, reader in self._node_sols.items()
+            name: reader.read_solution(VERTEX)
+            for name, reader in self._node_sols.items()
         }
 
         cell_data = {
