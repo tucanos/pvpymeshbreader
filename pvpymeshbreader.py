@@ -360,10 +360,13 @@ class PythonMeshbReader(VTKPythonAlgorithmBase):
                 continue
             tags = np.unique(np.concatenate(tags))
             for tag in tags:
-                try:
-                    name = self._names[tag]
-                except:
-                    name = "tag_%d" % tag
+                if dim == cell_dim:
+                    name = "cell_tag_%d" % tag
+                else:
+                    try:
+                        name = self._names[tag]
+                    except:
+                        name = "bdy_tag_%d" % tag
                 (pug, vert_ids, cell_ids) = self._create_unstructured_grid(
                     dim, tag, xyz, cells
                 )
