@@ -146,7 +146,7 @@ class PythonMeshbReader(VTKPythonAlgorithmBase):
             name = self._file_names[time_step]
         else:
             name = self._file_names[0]
-            if time_step is not None:
+            if time_step is not None and self._timesteps is not None:
                 time_step = self._timesteps.index(time_step)
             else:
                 time_step = 0
@@ -193,7 +193,10 @@ class PythonMeshbReader(VTKPythonAlgorithmBase):
         if len(self._file_names) > 1:
             return list(range(len(self._file_names)))
         else:
-            return self._timesteps
+            if self._timesteps is not None:
+                return self._timesteps
+            else:
+                return [0]
 
     @smproperty.doublevector(
         name="TimestepValues", information_only="1", si_class="vtkSITimeStepsProperty"
@@ -344,7 +347,8 @@ class PythonMeshbReader(VTKPythonAlgorithmBase):
 
         cell_data = {
             name: {
-                etype: self._cell_sols[name].read_sol(etype) for etype in cells.keys()
+                etype: self._cell_sols[name].read_solution(etype)
+                for etype in cells.keys()
             }
             for name in self._cell_sols.keys()
         }
@@ -445,9 +449,10 @@ def test(fname):
 
 if __name__ == "__main__":
     import os
+    import sys
 
     logging.basicConfig(level=logging.DEBUG)
 
     # test("quadratic.meshb")
 
-    test("mesh.meshb")
+    test(sys.argv[1])

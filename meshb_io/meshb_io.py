@@ -2,6 +2,7 @@ import os
 import numpy as np
 import numpy.ctypeslib as npct
 from ctypes import c_char_p, c_int, c_int64, POINTER
+import logging
 
 lib = npct.load_library("_meshb_io.so", os.path.dirname(__file__))
 
@@ -163,11 +164,14 @@ class MeshbReader:
 
         dim = c_int(-1)
         ver = c_int(-1)
+        logging.debug(f"opening file {fname.encode()}")
         self._file = lib.open_file_read(fname.encode(), ver, dim)
         if self._file == 0:
             raise IOError(f"Unable to open {fname} ")
         self._dim = dim.value
         self._ver = ver.value
+        logging.debug(f"dimension = {self._dim}")
+        logging.debug(f"version = {self._ver}")
         assert self._ver in [2, 3, 4]
         assert self._dim in [2, 3]
 
@@ -177,7 +181,9 @@ class MeshbReader:
 
     def _num_vertices(self):
 
-        return lib.get_num_entities(self._file, VERTEX)
+        n = lib.get_num_entities(self._file, VERTEX)
+        logging.debug(f"found {n} vertices")
+        return n
 
     def read_vertices(self):
 
@@ -188,7 +194,9 @@ class MeshbReader:
 
     def _num_elements(self, etype):
 
-        return lib.get_num_entities(self._file, etype)
+        n = lib.get_num_entities(self._file, etype)
+        logging.debug(f"found {n} elements {etype}")
+        return n
 
     def _read_elements(self, etype):
 
