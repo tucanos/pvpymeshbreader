@@ -100,7 +100,7 @@ class PythonMeshbReader(VTKPythonAlgorithmBase):
         self._file_names = []
         self._filename = None
         self._current_time = None
-        self._timesteps = None
+        self._timesteps = [0]
 
         self._names = None
         self._mesh = None
