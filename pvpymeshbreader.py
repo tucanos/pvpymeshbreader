@@ -448,11 +448,13 @@ def test(fname):
 
 
 if __name__ == "__main__":
+    import sys
     import os
     import sys
 
     logging.basicConfig(level=logging.DEBUG)
 
-    # test("quadratic.meshb")
-
-    test(sys.argv[1])
+    try:
+        test(sys.argv[1])
+    except:
+        print(f"no valid file: {sys.argv}")
