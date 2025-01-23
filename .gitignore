@@ -4,3 +4,5 @@
 *.meshb
 *.json
 *.pyc
+*.vtm
+*.vtu
