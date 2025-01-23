@@ -156,11 +156,10 @@ int read_elements(int64_t file, int64_t n_elems, int m, int etype, int64_t *conn
             GmfGetLin(file, etype, &conn[3 * i],
                       &conn[3 * i + 1], &conn[3 * i + 2], &tags[i]);
         }
-        else if (m == 6)
+        else if (m == 4)
         {
-            GmfGetLin(file, etype, &conn[6 * i],
-                      &conn[6 * i + 1], &conn[6 * i + 2], &conn[6 * i + 3],
-                      &conn[6 * i + 4], &conn[6 * i + 5], &tags[i]);
+            GmfGetLin(file, etype, &conn[4 * i],
+                      &conn[4 * i + 1], &conn[4 * i + 2], &conn[4 * i + 3], &tags[i]);
         }
         else
         {
@@ -189,11 +188,10 @@ int read_elements_int(int64_t file, int64_t n_elems, int m, int etype, int *conn
             GmfGetLin(file, etype, &conn[3 * i],
                       &conn[3 * i + 1], &conn[3 * i + 2], &tags[i]);
         }
-        else if (m == 6)
+        else if (m == 4)
         {
-            GmfGetLin(file, etype, &conn[6 * i],
-                      &conn[6 * i + 1], &conn[6 * i + 2], &conn[6 * i + 3],
-                      &conn[6 * i + 4], &conn[6 * i + 5], &tags[i]);
+            GmfGetLin(file, etype, &conn[4 * i],
+                      &conn[4 * i + 1], &conn[4 * i + 2], &conn[4 * i + 3], &tags[i]);
         }
         else
         {

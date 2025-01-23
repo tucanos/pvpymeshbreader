@@ -189,7 +189,8 @@ class MeshbReader:
 
         n = self._num_vertices()
         verts = np.zeros((n, self._dim), dtype=np.float64)
-        lib.read_vertices(self._file, n, self._dim, verts)
+        res = lib.read_vertices(self._file, n, self._dim, verts)
+        assert res == 0
         return verts
 
     def _num_elements(self, etype):
@@ -205,10 +206,12 @@ class MeshbReader:
         tags = np.zeros(n, dtype=np.intc)
         if self._ver <= 3:
             conn = np.zeros((n, m), dtype=np.intc)
-            lib.read_elements_int(self._file, n, m, etype, conn, tags)
+            res = lib.read_elements_int(self._file, n, m, etype, conn, tags)
         else:
             conn = np.zeros((n, m), dtype=np.int64)
-            lib.read_elements(self._file, n, m, etype, conn, tags)
+            res = lib.read_elements(self._file, n, m, etype, conn, tags)
+        assert res == 0
+
         return conn, tags
 
     def read_elements(self):
