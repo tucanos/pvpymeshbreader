@@ -108,6 +108,8 @@ class PythonMeshbReader(VTKPythonAlgorithmBase):
         self._cell_sols = {}
         self._first_load = True
 
+        self._steps_read = False
+
     @smproperty.stringvector(
         name="FileNames",
         label="File Names",
@@ -135,8 +137,9 @@ class PythonMeshbReader(VTKPythonAlgorithmBase):
             with open(config_fname, "r") as f:
                 config = json.load(f)
             if "steps" in config:
-                assert self._timesteps is None
+                assert not self._steps_read
                 self._timesteps = [x["time"] for x in config["steps"]]
+                self._steps_read = True
 
     def __read_files_for_step(self, time_step):
 
@@ -166,7 +169,14 @@ class PythonMeshbReader(VTKPythonAlgorithmBase):
             with open(config_fname, "r") as f:
                 config = json.load(f)
             if "names" in config:
-                self._names = {tag: name for name, tag in config["names"].items()}
+                self._names = {}
+                for name, tags in config["names"].items():
+                    if len(tags) == 1:
+                        self._names[tags[0]] = name
+                    else:
+                        for i, t in enumerate(tags):
+                            self._names[t] = f"{name}_{i}"
+
                 logging.info(f"Names: {self._names}")
             if "steps" in config:
                 config = config["steps"][time_step]
